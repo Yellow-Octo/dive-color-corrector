@@ -65,9 +65,20 @@ def applyFilter(mat, f):
     r = mat[..., 0]
     g = mat[..., 1]
     b = mat[..., 2]
-    r = r * f[0] + g * f[1] + b * f[2] + f[4] * 255
-    g = g * f[6] + f[9] * 255
-    b = b * f[12] + f[14] * 255
+
+    redGain = f[0]
+    redGainFromGreen = f[1]
+    redGainFromBlue = f[2]
+    redOffset = f[4]
+    greenGain = f[6]
+    greenOffset = f[9]
+    blueGain = f[12]
+    blueOffset = f[14]
+
+    r = r * redGain + g * redGainFromGreen + b * redGainFromBlue + redOffset
+    g = g * greenGain + greenOffset
+    b = b * blueGain + blueOffset
+
     filtered_mat = np.dstack([r, g, b])
     filtered_mat = np.clip(filtered_mat, 0, 255).astype(np.uint8)
     return filtered_mat
@@ -127,19 +138,21 @@ def getFilterValues(inputMat):
     red_gain = 256 / (adjust_r_high - adjust_r_low)
     green_gain = 256 / (adjust_g_high - adjust_g_low)
     blue_gain = 256 / (adjust_b_high - adjust_b_low)
-    redOffset = (-adjust_r_low / 256) * red_gain
-    greenOffset = (-adjust_g_low / 256) * green_gain
-    blueOffset = (-adjust_b_low / 256) * blue_gain
+    redOffset = -adjust_r_low * red_gain
+    greenOffset = -adjust_g_low * green_gain
+    blueOffset = -adjust_b_low * blue_gain
     adjust_red = shifted_r * red_gain
     adjust_red_green = shifted_g * red_gain
     adjust_red_blue = shifted_b * red_gain * BLUE_MAGIC_VALUE
     # not super sure why this is arranged as a pseudo-matrix. Prof gpt says this is not a standard in any way.
+    # these variable names are straight copied form the JS version, the correctness of the names are kinda sus
     return np.array([
         adjust_red, adjust_red_green, adjust_red_blue, 0, redOffset,
         0, green_gain, 0, 0, greenOffset,
         0, 0, blue_gain, 0, blueOffset,
         0, 0, 0, 1, 0,
     ])
+
 
 def analyze_video(input_video_path, output_video_path):
     cap = cv2.VideoCapture(input_video_path)

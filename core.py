@@ -23,8 +23,8 @@ def correct_image(input_path, output_path):
 
 def generatedCorrected(mat):
     original_mat = mat.copy()
-    filterMatrix = getFilterMatrix(mat)
-    corrected = applyFilter(original_mat, filterMatrix)
+    filterValues = getFilterValues(mat)
+    corrected = applyFilter(original_mat, filterValues)
     return cv2.cvtColor(corrected, cv2.COLOR_RGB2BGR)
 
 
@@ -73,7 +73,7 @@ def applyFilter(mat, f):
     return filtered_mat
 
 
-def getFilterMatrix(inputMat):
+def getFilterValues(inputMat):
     # Resize input to a fixed 256x256 resolution since
     # finding out the filter matrix does not require high resolution
     # the smaller we do it, the less complex the calculations will be since they
@@ -133,6 +133,7 @@ def getFilterMatrix(inputMat):
     adjust_red = shifted_r * red_gain
     adjust_red_green = shifted_g * red_gain
     adjust_red_blue = shifted_b * red_gain * BLUE_MAGIC_VALUE
+    # not super sure why this is arranged as a pseudo-matrix. Prof gpt says this is not a standard in any way.
     return np.array([
         adjust_red, adjust_red_green, adjust_red_blue, 0, redOffset,
         0, green_gain, 0, 0, greenOffset,
@@ -161,7 +162,7 @@ def analyze_video(input_video_path, output_video_path):
         if count % (fps * SAMPLE_SECONDS) == 0:
             mat = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             filter_matrix_indexes.append(count)
-            filter_matrices.append(getFilterMatrix(mat))
+            filter_matrices.append(getFilterValues(mat))
         yield count
     cap.release()
     filter_matrices = np.array(filter_matrices)

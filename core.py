@@ -6,10 +6,9 @@ THRESHOLD_RATIO = 2000
 MIN_AVG_RED = 60
 MAX_HUE_SHIFT = 120
 BLUE_MAGIC_VALUE = 1.2
-SAMPLE_SECONDS = 2  # Extracts color correction from every N seconds
 
 
-def correct_image(input_path, output_path):
+def correctImage(input_path, output_path):
     raw_data = cv2.imread(input_path)  # reads image into BGR format
     rgb_data = cv2.cvtColor(raw_data, cv2.COLOR_BGR2RGB)  # converts BGR to RGB
     corrected = generatedCorrected(rgb_data)
@@ -21,67 +20,6 @@ def generatedCorrected(mat):
     filterValues = getFilterValues(mat)
     corrected = applyFilter(original_mat, filterValues)
     return cv2.cvtColor(corrected, cv2.COLOR_RGB2BGR)
-
-
-def redShift(mat, shiftAngle):
-    U = math.cos(shiftAngle * math.pi / 180)
-    W = math.sin(shiftAngle * math.pi / 180)
-
-    # This uses a series of coefficients to adjust the RGB values based on a hue rotation matrix. These coefficients
-    # are derived from the properties of the human vision system and standard color theory
-
-    # 0.299: This is the luminance contribution from the red channel in the RGB to YIQ color space conversion
-    # (YIQ is used in color television broadcasting). It signifies how much red contributes to the perceived brightness
-    # of a color.
-    # 0.701: This adjusts the red component’s contribution when shifting the hue, enhancing red as the angle increases.
-    # 0.168: A smaller adjustment factor that slightly modifies the red component based on the sine of the angle, aiding
-    # in hue rotation towards red.
-    r = (0.299 + 0.701 * U + 0.168 * W) * mat[..., 0]
-    g = (0.587 - 0.587 * U + 0.330 * W) * mat[..., 1]
-    b = (0.114 - 0.114 * U - 0.497 * W) * mat[..., 2]
-    return np.dstack([r, g, b])
-
-
-# returns the values of the array that has the highest difference between two consecutive elements
-def getNormalizingInterval(array):
-    high = 255
-    low = 0
-    max_dist = 0
-    for i in range(1, len(array)):
-        dist = array[i] - array[i - 1]
-        if dist > max_dist:
-            max_dist = dist
-            high = array[i]
-            low = array[i - 1]
-    return low, high
-
-
-def applyFilter(mat, color_matrix):
-    """
-    Apply a color matrix transformation to an image matrix
-    :param mat:
-    :param color_matrix: 4x4 color matrix
-    :return: adjusted image
-    """
-    height, width = mat.shape[:2]
-
-    # Reshape the input matrix to 2D (height * width, 3)
-    reshaped_mat = mat.reshape(-1, 3)
-
-    # Add a column of ones to create 4x1 vectors [r, g, b, 1]
-    reshaped_mat_homogeneous = np.column_stack((reshaped_mat, np.ones(reshaped_mat.shape[0])))
-
-    # Apply the color matrix transformation
-    filtered_mat = np.dot(reshaped_mat_homogeneous, color_matrix.T)
-
-    # Remove the last column (which was for the homogeneous coordinate)
-    filtered_mat = filtered_mat[:, :3]
-
-    # Reshape back to the original shape and clip values
-    filtered_mat = filtered_mat.reshape(height, width, 3)
-    filtered_mat = np.clip(filtered_mat, 0, 255).astype(np.uint8)
-
-    return filtered_mat
 
 
 def getFilterValues(inputMat):
@@ -176,83 +114,62 @@ def getFilterValues(inputMat):
     return color_matrix
 
 
-def analyze_video(input_video_path, output_video_path):
-    cap = cv2.VideoCapture(input_video_path)
-    fps = math.ceil(cap.get(cv2.CAP_PROP_FPS))
-    frame_count = math.ceil(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    filter_matrix_indexes = []
-    filter_matrices = []
-    count = 0
-    print("Analyzing...")
-    while (cap.isOpened()):
-        count += 1
-        print(f"{count} frames", end="\r")
-        ret, frame = cap.read()
-        if not ret:
-            if count >= frame_count:
-                break
-            if count >= 1e6:
-                break
-            continue
-        if count % (fps * SAMPLE_SECONDS) == 0:
-            mat = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            filter_matrix_indexes.append(count)
-            filter_matrices.append(getFilterValues(mat))
-        yield count
-    cap.release()
-    filter_matrices = np.array(filter_matrices)
-    yield {
-        "input_video_path": input_video_path,
-        "output_video_path": output_video_path,
-        "fps": fps,
-        "frame_count": count,
-        "filters": filter_matrices,
-        "filter_indices": filter_matrix_indexes
-    }
+def redShift(mat, shiftAngle):
+    U = math.cos(shiftAngle * math.pi / 180)
+    W = math.sin(shiftAngle * math.pi / 180)
+
+    # This uses a series of coefficients to adjust the RGB values based on a hue rotation matrix. These coefficients
+    # are derived from the properties of the human vision system and standard color theory
+
+    # 0.299: This is the luminance contribution from the red channel in the RGB to YIQ color space conversion
+    # (YIQ is used in color television broadcasting). It signifies how much red contributes to the perceived brightness
+    # of a color.
+    # 0.701: This adjusts the red component’s contribution when shifting the hue, enhancing red as the angle increases.
+    # 0.168: A smaller adjustment factor that slightly modifies the red component based on the sine of the angle, aiding
+    # in hue rotation towards red.
+    r = (0.299 + 0.701 * U + 0.168 * W) * mat[..., 0]
+    g = (0.587 - 0.587 * U + 0.330 * W) * mat[..., 1]
+    b = (0.114 - 0.114 * U - 0.497 * W) * mat[..., 2]
+    return np.dstack([r, g, b])
 
 
-def process_video(video_data, yield_preview=False):
-    cap = cv2.VideoCapture(video_data["input_video_path"])
-    frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    new_video = cv2.VideoWriter(video_data["output_video_path"], fourcc, video_data["fps"],
-                                (int(frame_width), int(frame_height)))
-    filter_matrices = video_data["filters"]
-    filter_indices = video_data["filter_indices"]
-    filter_matrix_size = len(filter_matrices[0])
+# returns the values of the array that has the highest difference between two consecutive elements
+def getNormalizingInterval(array):
+    high = 255
+    low = 0
+    max_dist = 0
+    for i in range(1, len(array)):
+        dist = array[i] - array[i - 1]
+        if dist > max_dist:
+            max_dist = dist
+            high = array[i]
+            low = array[i - 1]
+    return low, high
 
-    def get_interpolated_filter_matrix(frame_number):
-        return [np.interp(frame_number, filter_indices, filter_matrices[..., x]) for x in range(filter_matrix_size)]
 
-    print("Processing...")
-    frame_count = video_data["frame_count"]
-    count = 0
-    cap = cv2.VideoCapture(video_data["input_video_path"])
-    while (cap.isOpened()):
-        count += 1
-        percent = 100 * count / frame_count
-        print("{:.2f}".format(percent), end=" % \r")
-        ret, frame = cap.read()
-        if not ret:
-            if count >= frame_count:
-                break
-            if count >= 1e6:
-                break
-            continue
-        rgb_mat = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        interpolated_filter_matrix = get_interpolated_filter_matrix(count)
-        corrected_mat = applyFilter(rgb_mat, interpolated_filter_matrix)
-        corrected_mat = cv2.cvtColor(corrected_mat, cv2.COLOR_RGB2BGR)
-        new_video.write(corrected_mat)
-        if yield_preview:
-            preview = frame.copy()
-            width = preview.shape[1] // 2
-            height = preview.shape[0] // 2
-            preview[::, width:] = corrected_mat[::, width:]
-            preview = cv2.resize(preview, (width, height))
-            yield percent, cv2.imencode('.png', preview)[1].tobytes()
-        else:
-            yield None
-    cap.release()
-    new_video.release()
+def applyFilter(mat, color_matrix):
+    """
+    Apply a color matrix transformation to an image matrix
+    :param mat:
+    :param color_matrix: 4x4 color matrix
+    :return: adjusted image
+    """
+    height, width = mat.shape[:2]
+
+    # Reshape the input matrix to 2D (height * width, 3)
+    reshaped_mat = mat.reshape(-1, 3)
+
+    # Add a column of ones to create 4x1 vectors [r, g, b, 1]
+    reshaped_mat_homogeneous = np.column_stack((reshaped_mat, np.ones(reshaped_mat.shape[0])))
+
+    # Apply the color matrix transformation
+    filtered_mat = np.dot(reshaped_mat_homogeneous, color_matrix.T)
+
+    # Remove the last column (which was for the homogeneous coordinate)
+    filtered_mat = filtered_mat[:, :3]
+
+    # Reshape back to the original shape and clip values
+    filtered_mat = filtered_mat.reshape(height, width, 3)
+    filtered_mat = np.clip(filtered_mat, 0, 255).astype(np.uint8)
+
+    return filtered_mat

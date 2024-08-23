@@ -1,6 +1,6 @@
 import PySimpleGUI as sg
 import os
-from correct import correct_image, analyze_video, process_video
+from correct import correctImage, analyze_video, process_video
 import webbrowser
 from logo.logo import LOGO
 
@@ -228,7 +228,7 @@ if __name__ == "__main__":
                 extension = f[f.rfind("."):].lower() 
                 
                 if extension in IMAGE_TYPES:
-                    preview = correct_image(f, output_filepath)
+                    preview = correctImage(f, output_filepath)
                     window["__PREVIEW__"](data=preview)
                 
                 if extension in VIDEO_TYPES:

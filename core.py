@@ -14,11 +14,6 @@ def correct_image(input_path, output_path):
     rgb_data = cv2.cvtColor(raw_data, cv2.COLOR_BGR2RGB)  # converts BGR to RGB
     corrected = generatedCorrected(rgb_data)
     cv2.imwrite(output_path, corrected)
-    preview = raw_data.copy()
-    width = preview.shape[1] // 2
-    preview[::, width:] = corrected[::, width:]
-    preview = cv2.resize(preview, (960, 540))
-    return cv2.imencode('.png', preview)[1].tobytes()
 
 
 def generatedCorrected(mat):

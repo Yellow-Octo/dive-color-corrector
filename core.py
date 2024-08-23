@@ -144,8 +144,18 @@ def getFilterValues(inputMat):
     adjust_red = shifted_r * red_gain
     adjust_red_green = shifted_g * red_gain
     adjust_red_blue = shifted_b * red_gain * BLUE_MAGIC_VALUE
-    # not super sure why this is arranged as a pseudo-matrix. Prof gpt says this is not a standard in any way.
-    # these variable names are straight copied form the JS version, the correctness of the names are kinda sus
+    # the following is a color matrix, which is a concept that can be found in adobe flash, android, and microsoft c#
+    # it should be a 5x5 matrix.
+    # https://developer.android.com/reference/android/graphics/ColorMatrix.html
+    # https://learn.microsoft.com/en-us/dotnet/desktop/winforms/advanced/how-to-use-a-color-matrix-to-transform-a-single-color?view=netframeworkdesktop-4.8
+    #
+    # The reason is that rgba is 4 components, and a 5th higher dimension is added in order
+    # to add the ability to add a constant (translation).
+    # the rgba vector is then also padded by 1 making it 5 components.
+
+    # in many systems, like c#, the values are normalized to 1, instead of 256. Originally this code had offsets that
+    # were normalized, which required re-expanding back to the [0-255] range. This made no sense here so it is
+    # simplified to use the 0-255 range directly.
     return np.array([
         adjust_red, adjust_red_green, adjust_red_blue, 0, redOffset,
         0, green_gain, 0, 0, greenOffset,

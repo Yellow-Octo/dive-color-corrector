@@ -61,30 +61,46 @@ def getNormalizingInterval(array):
     return low, high
 
 
-def applyFilter(mat, f):
-    r = mat[..., 0]
-    g = mat[..., 1]
-    b = mat[..., 2]
+def applyFilter(mat, color_matrix):
+    """
+    Apply a color matrix transformation to an image matrix
+    :param mat:
+    :param color_matrix: 4x4 color matrix
+    :return: adjusted image
+    """
+    height, width = mat.shape[:2]
 
-    redGain = f[0]
-    redGainFromGreen = f[1]
-    redGainFromBlue = f[2]
-    redOffset = f[4]
-    greenGain = f[6]
-    greenOffset = f[9]
-    blueGain = f[12]
-    blueOffset = f[14]
+    # Reshape the input matrix to 2D (height * width, 3)
+    reshaped_mat = mat.reshape(-1, 3)
 
-    r = r * redGain + g * redGainFromGreen + b * redGainFromBlue + redOffset
-    g = g * greenGain + greenOffset
-    b = b * blueGain + blueOffset
+    # Add a column of ones to create 4x1 vectors [r, g, b, 1]
+    reshaped_mat_homogeneous = np.column_stack((reshaped_mat, np.ones(reshaped_mat.shape[0])))
 
-    filtered_mat = np.dstack([r, g, b])
+    # Apply the color matrix transformation
+    filtered_mat = np.dot(reshaped_mat_homogeneous, color_matrix.T)
+
+    # Remove the last column (which was for the homogeneous coordinate)
+    filtered_mat = filtered_mat[:, :3]
+
+    # Reshape back to the original shape and clip values
+    filtered_mat = filtered_mat.reshape(height, width, 3)
     filtered_mat = np.clip(filtered_mat, 0, 255).astype(np.uint8)
+
     return filtered_mat
 
 
 def getFilterValues(inputMat):
+    """
+    Generate a color matrix via red shifts and histogram analysis.
+    :param inputMat: Input matrix for which the color matrix will be calculated.
+    :return: 4x4 color matrix
+    ```
+    [r   g   b   rGain]
+    [0   g   0   gGain]
+    [0   0   b   bGain]
+    [0   0   0   1    ]
+    ```
+    """
     # Resize input to a fixed 256x256 resolution since
     # finding out the filter matrix does not require high resolution
     # the smaller we do it, the less complex the calculations will be since they
@@ -153,15 +169,16 @@ def getFilterValues(inputMat):
     # to add the ability to add a constant (translation).
     # the rgba vector is then also padded by 1 making it 5 components.
 
-    # in many systems, like c#, the values are normalized to 1, instead of 256. Originally this code had offsets that
-    # were normalized, which required re-expanding back to the [0-255] range. This made no sense here so it is
-    # simplified to use the 0-255 range directly.
-    return np.array([
-        adjust_red, adjust_red_green, adjust_red_blue, 0, redOffset,
-        0, green_gain, 0, 0, greenOffset,
-        0, 0, blue_gain, 0, blueOffset,
-        0, 0, 0, 1, 0,
+    # since we are not working with alpha channel, our matrix is one dimension less, but the concept is the same
+
+    color_matrix = np.array([
+        [adjust_red, adjust_red_green, adjust_red_blue, redOffset],
+        [0, green_gain, 0, greenOffset],
+        [0, 0, blue_gain, blueOffset],
+        [0, 0, 0, 1]
     ])
+
+    return color_matrix
 
 
 def analyze_video(input_video_path, output_video_path):
